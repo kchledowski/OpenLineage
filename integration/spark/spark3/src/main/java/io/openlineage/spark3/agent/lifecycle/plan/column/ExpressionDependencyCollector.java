@@ -29,25 +29,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.reflect.MethodUtils;
-import org.apache.spark.sql.catalyst.expressions.Alias;
-import org.apache.spark.sql.catalyst.expressions.Attribute;
-import org.apache.spark.sql.catalyst.expressions.AttributeReference;
-import org.apache.spark.sql.catalyst.expressions.CaseWhen;
-import org.apache.spark.sql.catalyst.expressions.Crc32;
-import org.apache.spark.sql.catalyst.expressions.ExprId;
-import org.apache.spark.sql.catalyst.expressions.Expression;
-import org.apache.spark.sql.catalyst.expressions.HiveHash;
-import org.apache.spark.sql.catalyst.expressions.If;
-import org.apache.spark.sql.catalyst.expressions.Md5;
-import org.apache.spark.sql.catalyst.expressions.Murmur3Hash;
-import org.apache.spark.sql.catalyst.expressions.NamedExpression;
-import org.apache.spark.sql.catalyst.expressions.RankLike;
-import org.apache.spark.sql.catalyst.expressions.RowNumberLike;
-import org.apache.spark.sql.catalyst.expressions.Sha1;
-import org.apache.spark.sql.catalyst.expressions.Sha2;
-import org.apache.spark.sql.catalyst.expressions.SortOrder;
-import org.apache.spark.sql.catalyst.expressions.WindowExpression;
-import org.apache.spark.sql.catalyst.expressions.XxHash64;
+import org.apache.spark.sql.catalyst.expressions.*;
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression;
 import org.apache.spark.sql.catalyst.expressions.aggregate.Count;
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate;
@@ -212,6 +194,8 @@ public class ExpressionDependencyCollector {
       handleExpression((CaseWhen) expr, outputExprId, transformationInfo, builder);
     } else if (expr instanceof If) {
       handleExpression((If) expr, outputExprId, transformationInfo, builder);
+    } else if (expr instanceof Coalesce) {
+      handleExpression((Coalesce) expr, outputExprId, transformationInfo, builder);
     } else if (expr instanceof AggregateExpression) {
       handleExpression((AggregateExpression) expr, outputExprId, transformationInfo, builder);
     } else if (expr instanceof WindowExpression) {
@@ -305,6 +289,23 @@ public class ExpressionDependencyCollector {
     if (cw.elseValue().isDefined()) {
       traverseExpression(cw.elseValue().get(), outputExprId, transformationInfo, builder);
     }
+  }
+
+  private static void handleExpression(
+      Coalesce expr,
+      ExprId outputExprId,
+      TransformationInfo transformationInfo,
+      ColumnLevelLineageBuilder builder) {
+    ScalaConversionUtils.fromSeq(expr.children())
+        .forEach(
+            e -> {
+              traverseExpression(
+                  e,
+                  outputExprId,
+                  transformationInfo.merge(TransformationInfo.indirect(CONDITIONAL)),
+                  builder);
+              traverseExpression(e, outputExprId, transformationInfo, builder);
+            });
   }
 
   private static void handleExpression(

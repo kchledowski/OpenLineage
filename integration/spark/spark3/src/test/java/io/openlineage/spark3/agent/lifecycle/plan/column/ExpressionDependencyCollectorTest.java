@@ -5,11 +5,7 @@
 
 package io.openlineage.spark3.agent.lifecycle.plan.column;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import io.openlineage.client.utils.TransformationInfo;
 import io.openlineage.spark.agent.lifecycle.plan.column.ColumnLevelLineageBuilder;
@@ -20,33 +16,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.stream.Collectors;
-import org.apache.spark.sql.catalyst.expressions.Add;
-import org.apache.spark.sql.catalyst.expressions.Alias;
-import org.apache.spark.sql.catalyst.expressions.And;
-import org.apache.spark.sql.catalyst.expressions.AttributeReference;
-import org.apache.spark.sql.catalyst.expressions.BinaryExpression;
-import org.apache.spark.sql.catalyst.expressions.CaseWhen;
-import org.apache.spark.sql.catalyst.expressions.Descending$;
-import org.apache.spark.sql.catalyst.expressions.EqualTo;
-import org.apache.spark.sql.catalyst.expressions.Explode;
-import org.apache.spark.sql.catalyst.expressions.ExprId;
-import org.apache.spark.sql.catalyst.expressions.Expression;
-import org.apache.spark.sql.catalyst.expressions.GreaterThan;
-import org.apache.spark.sql.catalyst.expressions.If;
-import org.apache.spark.sql.catalyst.expressions.Literal;
-import org.apache.spark.sql.catalyst.expressions.NamedExpression;
-import org.apache.spark.sql.catalyst.expressions.NullOrdering;
-import org.apache.spark.sql.catalyst.expressions.Rank;
-import org.apache.spark.sql.catalyst.expressions.RowFrame$;
-import org.apache.spark.sql.catalyst.expressions.Sha1;
-import org.apache.spark.sql.catalyst.expressions.SortDirection;
-import org.apache.spark.sql.catalyst.expressions.SortOrder;
-import org.apache.spark.sql.catalyst.expressions.SortOrder$;
-import org.apache.spark.sql.catalyst.expressions.SpecifiedWindowFrame$;
-import org.apache.spark.sql.catalyst.expressions.StringSplit;
-import org.apache.spark.sql.catalyst.expressions.WindowExpression;
-import org.apache.spark.sql.catalyst.expressions.WindowExpression$;
-import org.apache.spark.sql.catalyst.expressions.WindowSpecDefinition$;
+import org.apache.spark.sql.catalyst.expressions.*;
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression;
 import org.apache.spark.sql.catalyst.expressions.aggregate.Count;
 import org.apache.spark.sql.catalyst.plans.JoinType;
@@ -488,6 +458,26 @@ class ExpressionDependencyCollectorTest {
         .addDependency(rootAliasExprId, exprId1, TransformationInfo.aggregation());
     verify(builder, times(1))
         .addDependency(rootAliasExprId, exprId2, TransformationInfo.aggregation());
+  }
+
+  @Test
+  void testCollectCoalesceExpressions() {
+    Coalesce coalesceExpr =
+        new Coalesce(getExpressionSeq((Expression) expression1, (Expression) expression2));
+    Alias res = alias(exprId3, "res", coalesceExpr);
+    Project project = new Project(getNamedExpressionSeq(res), mock(LogicalPlan.class));
+    LogicalPlan plan = new CreateTableAsSelect(null, null, null, project, null, null, false);
+    ExpressionDependencyCollector.collect(context, plan);
+
+    verify(builder, times(1))
+        .addDependency(
+            exprId3, exprId1, TransformationInfo.indirect(TransformationInfo.Subtypes.CONDITIONAL));
+    verify(builder, times(1))
+        .addDependency(
+            exprId3, exprId2, TransformationInfo.indirect(TransformationInfo.Subtypes.CONDITIONAL));
+    verify(builder, times(1)).addDependency(exprId3, exprId1, TransformationInfo.identity());
+    verify(builder, times(1)).addDependency(exprId3, exprId2, TransformationInfo.identity());
+    verifyNoMoreInteractions(builder);
   }
 
   private static Seq<NamedExpression> getNamedExpressionSeq(NamedExpression... expressions) {
