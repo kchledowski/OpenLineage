@@ -21,14 +21,14 @@ public enum DatabricksDynamicParameter implements DynamicParameter {
 
   // WORKSPACE PARAMETERS
 
-  Host("workspace.host"),
-
-  Token("workspace.token"),
+  Host("workspace.host", ""), // provide
+  ClientId("dbx.clientId", ""), // provide
+  ClientSecret("dbx.clientSecret", ""), // provide
 
   // CLUSTER PARAMETERS
 
   /** The Spark version as provided by Gradle. This case is not using the openlineage prefix. */
-  SparkVersion("spark.version", null, "3.5.6"),
+  SparkVersion("v", null, "3.5.6"),
 
   // DEVELOPMENT PARAMETERS
 
@@ -36,7 +36,7 @@ public enum DatabricksDynamicParameter implements DynamicParameter {
    * The ID of the cluster to use. If specified, the tests will use this existing cluster instead of
    * creating a new one.
    */
-  ClusterId("development.clusterId", ""),
+  ClusterId("development.clusterId", ""), // provide
 
   /**
    * When set to {@code true}, prevents the EMR cluster from terminating after tests complete. This
