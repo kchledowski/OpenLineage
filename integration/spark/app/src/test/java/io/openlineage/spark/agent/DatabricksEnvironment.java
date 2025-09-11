@@ -67,9 +67,9 @@ public class DatabricksEnvironment implements AutoCloseable {
 
   public static final String CLUSTER_NAME = "openlineage-test-cluster";
   public static final Map<String, String> PLATFORM_VERSIONS_NAMES =
-      ImmutableMap.of("3.4.4", "13.3.x-scala2.12", "3.5.6", "16.4.x-scala2.12");
+      ImmutableMap.of("3.4.4", "13.3.x-scala2.12", "3.5.6", "14.3.x-scala2.12");
   public static final Map<String, String> PLATFORM_VERSIONS =
-      ImmutableMap.of("3.4.4", "13.3", "3.5.6", "16.4");
+      ImmutableMap.of("3.4.4", "13.3", "3.5.6", "14.3");
   public static final String NODE_TYPE = "Standard_DS3_v2";
   public static final String INIT_SCRIPT_FILE = "/Shared/open-lineage-init-script.sh";
   public static final String DBFS_CLUSTER_LOGS = "dbfs:/databricks/openlineage/cluster-logs";
@@ -100,7 +100,8 @@ public class DatabricksEnvironment implements AutoCloseable {
     @Getter
     static class Workspace {
       private String host;
-      private String token;
+      private String clientId;
+      private String clientSecret;
     }
 
     @Builder
@@ -132,7 +133,8 @@ public class DatabricksEnvironment implements AutoCloseable {
         new WorkspaceClient(
             new DatabricksConfig()
                 .setHost(properties.getWorkspace().getHost())
-                .setToken(properties.getWorkspace().getToken()));
+                .setClientId(properties.getWorkspace().getClientId())
+                .setClientSecret(properties.getWorkspace().getClientSecret()));
     this.dbfs = workspace.dbfs();
 
     uploadOpenLineageJar();
@@ -215,7 +217,7 @@ public class DatabricksEnvironment implements AutoCloseable {
     log.info("Deleting events file [{}]", dbfsEventsFile);
     deleteEventsFile();
 
-    if (!(properties.getDevelopment().isPreventClusterTermination() || existingClusterUsed)) {
+    if (!(properties.getDevelopment().isPreventClusterTermination())) {
       log.info("Terminating cluster [{}].", clusterId);
       workspace.clusters().delete(clusterId);
       workspace.clusters().waitGetClusterTerminated(clusterId);

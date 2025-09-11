@@ -49,7 +49,8 @@ class DatabricksIntegrationTest {
                 .workspace(
                     DatabricksEnvironment.DatabricksEnvironmentProperties.Workspace.builder()
                         .host(DatabricksDynamicParameter.Host.resolve())
-                        .token(DatabricksDynamicParameter.Token.resolve())
+                        .clientId(DatabricksDynamicParameter.ClientId.resolve())
+                        .clientSecret(DatabricksDynamicParameter.ClientSecret.resolve())
                         .build())
                 .cluster(
                     DatabricksEnvironment.DatabricksEnvironmentProperties.Cluster.builder()
@@ -97,6 +98,12 @@ class DatabricksIntegrationTest {
   public static void shutdown() {
     databricks.fetchLogs();
     databricks.close();
+  }
+
+  @Test
+  void runOnDbx() {
+    assumeClusterRunning();
+    databricks.runScript("job.py");
   }
 
   @Test
