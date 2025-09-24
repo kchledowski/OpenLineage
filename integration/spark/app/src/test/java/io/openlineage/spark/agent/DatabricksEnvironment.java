@@ -212,16 +212,8 @@ public class DatabricksEnvironment implements AutoCloseable {
   @SneakyThrows
   @Override
   public void close() {
-    boolean existingClusterUsed = !"".equals(properties.getDevelopment().getExistingClusterId());
-
     log.info("Deleting events file [{}]", dbfsEventsFile);
     deleteEventsFile();
-
-    if (!(properties.getDevelopment().isPreventClusterTermination())) {
-      log.info("Terminating cluster [{}].", clusterId);
-      workspace.clusters().delete(clusterId);
-      workspace.clusters().waitGetClusterTerminated(clusterId);
-    }
 
     log.info("Deleting cluster logs from [{}].", clusterLogs);
     dbfs.delete(clusterLogs.toAbsolutePath().toString());
@@ -236,6 +228,9 @@ public class DatabricksEnvironment implements AutoCloseable {
   /** Fetches driver's stdout, stderr and log4j logs files */
   @SneakyThrows
   public void fetchLogs() {
+    log.info("Terminating cluster [{}].", clusterId);
+    workspace.clusters().delete(clusterId);
+    workspace.clusters().waitGetClusterTerminated(clusterId);
     DatabricksEnvironmentProperties.Development development = properties.getDevelopment();
     if (development.isFetchLog4jLogs()) {
       log.info("Fetching log4j logs");
