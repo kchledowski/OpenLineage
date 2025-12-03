@@ -46,6 +46,8 @@ import org.testcontainers.utility.DockerImageName;
 @Slf4j
 class PostgresJDBCSparkQueryTest {
   private static final OpenLineageEndpointHandler handler = new OpenLineageEndpointHandler();
+  private static final String UNAUTHORIZED_USER_NAME = "unauthorized_user";
+  private static final String UNAUTHORIZED_USER_PASSWORD = "unauthorized";
 
   @Test
   void testPostgresWhenOnlyOneTableIsLoadedDirectly() throws IOException, InterruptedException {
@@ -285,6 +287,60 @@ class PostgresJDBCSparkQueryTest {
     assertThat(inputFields.get(0).getNamespace()).startsWith("postgres://");
   }
 
+  @Test
+  void testPostgresWhenUserIsNotAuthorized() throws IOException, InterruptedException {
+    HttpServer server = createHttpServer(handler);
+    PostgreSQLTestContainer postgres = startPostgresContainer();
+
+    try (SparkSession spark = createSparkSession(
+        server.getAddress().getPort(), "testPostgresWhenUserIsNotAuthorized")) {
+      spark
+          .read()
+          .format("jdbc")
+          .option("url", postgres.getPostgres().getJdbcUrl())
+          .option("driver", "org.postgresql.Driver")
+          .option("dbtable", "authors")
+          .option("user", UNAUTHORIZED_USER_NAME)
+          .option("password", UNAUTHORIZED_USER_PASSWORD)
+          .load()
+          .show();
+    } catch (Exception e) {
+      // Expected to fail due to unauthorized user
+      log.info("Expected failure occurred: {}", e.getMessage());
+    }
+    postgres.stop();
+
+    List<RunEvent> events = handler.getEvents("test_postgres_when_user_is_not_authorized");
+
+    assertApplicationEvent(events.get(0), RunEvent.EventType.START);
+    assertApplicationEvent(events.get(1), RunEvent.EventType.COMPLETE);
+    assertThat(events).hasSize(2);
+  }
+
+  @Test
+  void testPostgresWhenThereAreNoSparkActions() throws IOException, InterruptedException {
+    HttpServer server = createHttpServer(handler);
+    PostgreSQLTestContainer postgres = startPostgresContainer();
+
+    SparkSession spark =
+        createSparkSession(
+            server.getAddress().getPort(), "testPostgresWhenThereAreNoSparkActions");
+
+    postgres.stop();
+    spark.stop();
+
+    List<RunEvent> events = handler.getEvents("test_postgres_when_there_are_no_spark_actions");
+
+    assertApplicationEvent(events.get(0), RunEvent.EventType.START);
+    assertApplicationEvent(events.get(1), RunEvent.EventType.COMPLETE);
+    assertThat(events).hasSize(2);
+  }
+
+  private static void assertApplicationEvent(RunEvent event, RunEvent.EventType eventType) {
+    assertThat(event.getEventType()).isEqualTo(eventType);
+    assertThat(event.getJob().getFacets().getJobType().getJobType()).isEqualTo("APPLICATION");
+  }
+
   private void loadSqlQuery(SparkSession spark, PostgreSQLTestContainer postgres, String query) {
     spark
         .read()
@@ -388,6 +444,14 @@ class PostgresJDBCSparkQueryTest {
         "openlineage",
         "-c",
         "INSERT INTO authors (author_id, author_name) VALUES (3, 'Alice Doe');");
+    postgres.execInContainer(
+        "psql",
+        "-U",
+        "openlineage",
+        "-d",
+        "openlineage",
+        "-c",
+        "CREATE USER " + UNAUTHORIZED_USER_NAME + " WITH PASSWORD '" + UNAUTHORIZED_USER_PASSWORD + "';");
     return new PostgreSQLTestContainer(postgres);
   }
 
